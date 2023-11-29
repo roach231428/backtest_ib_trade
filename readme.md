@@ -18,7 +18,7 @@ Before you begin, ensure you have met the following requirements:
 To install Backtest IB Trade, follow these steps:
 
 ```bash
-git clone https://github.com/yourusername/backtest_ib_trade.git
+git clone https://github.com/roach231428/backtest_ib_trade.git
 cd backtest_ib_trade
 pip install -r requirements.txt
 ```
