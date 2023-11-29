@@ -1,0 +1,70 @@
+[tool.black]
+line-length = 88
+include = "\\.pyi?$"
+exclude = """
+(
+   /(
+      \\.eggs         # exclude a few common directories in the
+    | \\.git          # root of the project
+    | \\.hg
+    | \\.mypy_cache
+    | \\.tox
+    | \\.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    )/
+)
+"""
+
+[tool.isort]
+# black compatibility
+profile = "black"
+# cuctom section
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+known_third_party = []
+known_local_folder = []
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.poetry]
+name = "backtest_ib_trade"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pandas = "2.0.1"
+numpy = "1.24.3"
+plotly = "5.14.1"
+yfinance = "0.2.18"
+matplotlib = "3.7.1"
+google-api-python-client = "2.86.0"
+google-auth-httplib2 = "0.1.0"
+google-auth-oauthlib = "1.0.0"
+backtrader = "1.9.78.123"
+ib_insync = "0.9.85"
+pre_commit = "3.5.0"
+mypy = "1.7.0"
+
+[tool.poetry.dev-dependencies]
+flake8 = "3.7.7"
+pyflakes = "2.1.1"
+pytest = "4.4.1"
+pytest-cov = "2.6.1"
+pytest-mock = "1.10.4"
+pytest-runner = "4.4"
+pre-commit = "2.15.0"
+mypy = "0.910"
+isort = "5.12.0"
+types-requests = "2.26.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
