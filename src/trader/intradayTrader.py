@@ -9,9 +9,9 @@ from model.trader import TraderBase
 
 class IntradayTrader(TraderBase):
     def __init__(
-        self, tickers: List[str], run_interval: float = 1, buffer_time: float = 5
+        self, tickers: List[str], sleep_interval: float = 1, buffer_time: float = 5
     ):
-        super().__init__(tickers, run_interval, buffer_time)
+        super().__init__(tickers, sleep_interval, buffer_time)
 
     def run(self) -> None:
         while True:
@@ -49,7 +49,7 @@ class IntradayTrader(TraderBase):
                 if stale_flag:
                     self.broker.sleep(50)  # Need to be adjusted
                 if skip_flag:
-                    self.broker.sleep(self.run_interval)
+                    self.broker.sleep(self.sleep_interval)
                     continue
 
                 self.broker.update()
@@ -63,7 +63,7 @@ class IntradayTrader(TraderBase):
                     logging.error(e)
             else:
                 logging.debug(f"Not now.")
-            self.broker.sleep(self.run_interval)
+            self.broker.sleep(self.sleep_interval)
 
     def stop(self) -> None:
         self.broker.closePosition(self.tickers)
