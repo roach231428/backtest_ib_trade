@@ -53,7 +53,7 @@ if __name__ == "__main__":
     stop_loss = 0.005
 
     trader = IntradayTrader(
-        tickers=[quote_ticker, hedge_ticker], run_interval=0.01, buffer_time=BUFFER_TIME
+        tickers=[quote_ticker, hedge_ticker], sleep_interval=0.01, buffer_time=BUFFER_TIME
     )
     trader.setBroker(InteractiveBrokers(clientId=1))
     trader.setStrategy(
