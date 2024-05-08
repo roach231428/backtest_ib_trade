@@ -7,6 +7,10 @@ import pandas as pd
 import pytz
 
 
+def get_logger():
+    return logging.getLogger(__name__)
+
+
 class DataGrabberBase(abc.ABC):
 
     datatime: datetime.datetime
@@ -55,6 +59,7 @@ class DataGrabberBase(abc.ABC):
         self.datatime: datetime.datetime = datetime.datetime(
             1990, 1, 1, tzinfo=pytz.UTC
         )
+        self.logger = get_logger()
 
     def set_tickers(self, tickers: str | List[str]) -> None:
         self.tickers = tickers
@@ -114,7 +119,7 @@ class DataGrabberBase(abc.ABC):
             return 0
         new_data = self.getHistoricalData()
         if new_data.shape[0] == 0:
-            logging.error(f"Getting data {self.name} error. No data retrieved.")
+            self.logger.error(f"Getting data {self.name} error. No data retrieved.")
             return -2
         self.data = new_data
         self.datatime = self.data.index[-1].astimezone(pytz.UTC)
@@ -124,13 +129,13 @@ class DataGrabberBase(abc.ABC):
             return 1
         elif interval_sec <= sec_diff < 2 * interval_sec:
             # Data may not update yet
-            logging.warn(
+            self.logger.warn(
                 f"Data {self.name} is not update yet. Latest update time: {self.datatime}."
             )
             return 2
         else:
             # Data is stale
-            logging.error(
+            self.logger.error(
                 f"Data {self.name} is too old. Latest update time: {self.datatime}"
             )
             return -1

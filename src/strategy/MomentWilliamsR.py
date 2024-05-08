@@ -1,7 +1,6 @@
 import sys
 
 sys.path.append("src")
-import logging
 import math
 from datetime import datetime
 from typing import List
@@ -10,7 +9,7 @@ import pandas as pd
 import talib
 from talib import abstract
 
-from model.strategy import StrategyBase
+from src.strategy.base import StrategyBase
 
 cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -132,7 +131,7 @@ class MomentWilliamsR(StrategyBase):
         new_size = math.floor(expected_cash / dest_close_price * 0.95)
 
         if cost > 0 and src_close_price / cost < (1 - self.stop_loss):
-            logging.info("Stop loss triggered.")
+            self.logger.info("Stop loss triggered.")
             return self.move_position(
                 src_ticker=src_ticker,
                 dest_ticker=dest_ticker,
@@ -144,7 +143,7 @@ class MomentWilliamsR(StrategyBase):
             quote_row["cmo_cross"] == 1
             and quote_row["williams_r"] <= self.paras["williams_lower"]
         ):
-            logging.info("Buy signal.")
+            self.logger.info("Buy signal.")
             if hedge_size > 0:
                 return self.move_position(
                     src_ticker=src_ticker,
@@ -165,7 +164,7 @@ class MomentWilliamsR(StrategyBase):
             quote_row["cmo_cross"] == -1
             and quote_row["williams_r"] >= self.paras["williams_upper"]
         ):
-            logging.info("Sell signal.")
+            self.logger.info("Sell signal.")
             if quote_size > 0:
                 return self.move_position(
                     src_ticker=src_ticker,

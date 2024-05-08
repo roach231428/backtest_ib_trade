@@ -4,15 +4,14 @@ import ib_insync as ib
 import pandas as pd
 
 sys.path.append("src")
-import logging
 import time
 from typing import Dict, List, Union
 
 from backtrader import CommInfoBase
 from ib_insync.order import UNSET_DOUBLE
 
-from model.broker import BrokerBase
 from model.models import Position
+from src.broker.base import BrokerBase
 
 
 class CommissionSchemeFixed(CommInfoBase):
@@ -216,9 +215,9 @@ class InteractiveBrokers(BrokerBase):
         if order_status.status == ib.OrderStatus.Filled:
             msg += f" {ib.OrderStatus.Filled} position at price {order_status.avgFillPrice}"
         msg += f". Timestamp: {log.time}"
-        logging.info(msg)
+        self.logger.info(msg)
         if log.errorCode != 0:
-            logging.error(log.message)
+            self.logger.error(log.message)
         return order_id
 
     def closePosition(self, tickers: str | List[str] = []) -> None:
@@ -259,13 +258,13 @@ class InteractiveBrokers(BrokerBase):
         for order in open_orders:
             if order.orderId in order_ids:
                 self._ib.cancelOrder(order)
-                logging.warning(f"Canceled order {order.orderId}.")
+                self.logger.warning(f"Canceled order {order.orderId}.")
                 self.sleep(0.001)
 
     def isPending(self, order_id: int) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         res = trade.orderStatus.status in {
             ib.OrderStatus.ApiPending,
@@ -277,7 +276,7 @@ class InteractiveBrokers(BrokerBase):
     def isSumbitted(self, order_id: int) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         return trade.orderStatus.status in {
             ib.OrderStatus.Submitted,
@@ -287,14 +286,14 @@ class InteractiveBrokers(BrokerBase):
     def isFilled(self, order_id: int) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         return trade.orderStatus.status == ib.OrderStatus.Filled
 
     def isCancelled(self, order_id: int) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         res = trade.orderStatus.status in {
             ib.OrderStatus.PendingCancel,
@@ -306,7 +305,7 @@ class InteractiveBrokers(BrokerBase):
     def getFilledPrice(self, order_id: int) -> float:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return 0.0
         return trade.orderStatus.avgFillPrice
 
