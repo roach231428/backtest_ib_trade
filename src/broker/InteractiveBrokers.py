@@ -68,7 +68,7 @@ class InteractiveBrokers(BrokerBase):
         self._clientId = clientId
         self._account = account
 
-        self.orderbyid: Dict[int, ib.Order] = dict()
+        self.orderbyid: Dict[str, ib.Order] = dict()
         self.positions: pd.DataFrame = pd.DataFrame()
         self.cash: float = 0
 
@@ -177,7 +177,7 @@ class InteractiveBrokers(BrokerBase):
         price: float = UNSET_DOUBLE,
         stop_price: float = UNSET_DOUBLE,
         **kwargs,
-    ) -> int:
+    ) -> str:
 
         symbol, currency, trade_type = instrument.upper().split("-")
         contract: Union[ib.Stock, ib.Future] = None
@@ -207,7 +207,7 @@ class InteractiveBrokers(BrokerBase):
         )
         trade = self._ib.placeOrder(contract, order)
         self._ib.waitOnUpdate()
-        order_id = trade.order.orderId
+        order_id = str(trade.order.orderId)
         self.orderbyid[order_id] = order
         order_status = trade.orderStatus
         log = trade.log[-1]
@@ -225,7 +225,7 @@ class InteractiveBrokers(BrokerBase):
             tickers = [tickers]
         positions = self.getHoldings(tickers)
         if len(tickers) == 0:
-            tickers = positions.keys()
+            tickers = list(positions.keys())
         for ticker in tickers:
             if ticker not in positions:
                 continue
@@ -235,33 +235,33 @@ class InteractiveBrokers(BrokerBase):
                 orderType="MKT",
             )
 
-    def getTradesById(self, order_ids: List[int] = []) -> Dict[int, ib.Trade | None]:
+    def getTradesById(self, order_ids: List[str] = []) -> Dict[str, ib.Trade | None]:
         all_trades = self._ib.trades()
         res = dict()
         for id in order_ids:
             res[id] = next((x for x in all_trades if x.order.orderId == id), None)
         return res
 
-    def getOrdersById(self, order_ids: List[int] = []) -> Dict[int, ib.Order | None]:
+    def getOrdersById(self, order_ids: List[str] = []) -> Dict[str, ib.Order | None]:
         trades = self.getTradesById(order_ids)
         return {
             oid: trades[oid].order if trades[oid] is not None else None
             for oid in order_ids
         }
 
-    def cancelOrders(self, order_ids: List[int] = []) -> None:
+    def cancelOrders(self, order_ids: List[str] = []) -> None:
         open_orders = [x.order for x in self._ib.openTrades()]
         if len(order_ids) == 0:
-            order_ids = list(set([x.orderId for x in open_orders]))
+            order_ids = list(set([str(x.orderId) for x in open_orders]))
         else:
-            order_ids = list(set([int(id) for id in order_ids]))
+            order_ids = list(set([id for id in order_ids]))
         for order in open_orders:
             if order.orderId in order_ids:
                 self._ib.cancelOrder(order)
-                self.logger.warning(f"Canceled order {order.orderId}.")
+                self.logger.warning(f"Order {order.orderId} has been canceled.")
                 self.sleep(0.001)
 
-    def isPending(self, order_id: int) -> bool:
+    def isPending(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
             self.logger.error(f"Order {order_id} not found.")
@@ -273,7 +273,7 @@ class InteractiveBrokers(BrokerBase):
         }
         return res
 
-    def isSumbitted(self, order_id: int) -> bool:
+    def isSumbitted(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
             self.logger.error(f"Order {order_id} not found.")
@@ -283,14 +283,14 @@ class InteractiveBrokers(BrokerBase):
             ib.OrderStatus.PreSubmitted,
         }
 
-    def isFilled(self, order_id: int) -> bool:
+    def isFilled(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
             self.logger.error(f"Order {order_id} not found.")
             return False
         return trade.orderStatus.status == ib.OrderStatus.Filled
 
-    def isCancelled(self, order_id: int) -> bool:
+    def isCancelled(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
             self.logger.error(f"Order {order_id} not found.")
@@ -302,7 +302,7 @@ class InteractiveBrokers(BrokerBase):
         }
         return res
 
-    def getFilledPrice(self, order_id: int) -> float:
+    def getFilledPrice(self, order_id: str) -> float:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
             self.logger.error(f"Order {order_id} not found.")
