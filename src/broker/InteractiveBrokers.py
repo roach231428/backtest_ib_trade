@@ -1,17 +1,14 @@
 import sys
-
-import ib_insync as ib
-import pandas as pd
-
-sys.path.append("src")
 import time
 from typing import Dict, List, Union
 
+import ib_insync as ib
+import pandas as pd
 from backtrader import CommInfoBase
 from ib_insync.order import UNSET_DOUBLE
 
-from model.models import Position
-from src.broker.base import BrokerBase
+from ..model.models import Position
+from .base import BrokerBase
 
 
 class CommissionSchemeFixed(CommInfoBase):

@@ -1,7 +1,5 @@
-import sys
-
-sys.path.append("src")
 import math
+import sys
 from datetime import datetime
 from typing import List
 
@@ -9,7 +7,7 @@ import pandas as pd
 import talib
 from talib import abstract
 
-from src.strategy.base import StrategyBase
+from .base import StrategyBase
 
 cur_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 

@@ -1,9 +1,7 @@
 import sys
-
-sys.path.append("src")
 from typing import List
 
-from src.trader.base import TraderBase
+from .base import TraderBase
 
 
 class IntradayTrader(TraderBase):
