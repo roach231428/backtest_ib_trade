@@ -1,10 +1,9 @@
-import logging
 from typing import Dict, List
 
 import pandas as pd
 import yfinance as yf
 
-from model.data_grabber import DataGrabberBase
+from src.grabber.base import DataGrabberBase
 
 
 class YahooFinanceGrabber(DataGrabberBase):
@@ -39,7 +38,7 @@ class YahooFinanceGrabber(DataGrabberBase):
         ticker_msg = (
             self.tickers if isinstance(self.tickers, str) else ", ".join(self.tickers)
         )
-        logging.info(f"Getting {ticker_msg} {self.interval} {period_text} data...")
+        self.logger.info(f"Getting {ticker_msg} {self.interval} {period_text} data...")
         return yf.download(
             self.tickers,
             interval=interval,
