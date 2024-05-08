@@ -3,7 +3,7 @@ from typing import Dict, List
 import pandas as pd
 import yfinance as yf
 
-from src.grabber.base import DataGrabberBase
+from .base import DataGrabberBase
 
 
 class YahooFinanceGrabber(DataGrabberBase):
