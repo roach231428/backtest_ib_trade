@@ -2,12 +2,13 @@ from typing import Dict, List
 
 import pandas as pd
 import yfinance as yf
+from datetime import datetime
 
 from .base import DataGrabberBase
 
 
 class YahooFinanceGrabber(DataGrabberBase):
-    max_period = {
+    _max_period = {
         "1m": "7d",
         "2m": "7d",
         "5m": "60d",
@@ -25,15 +26,15 @@ class YahooFinanceGrabber(DataGrabberBase):
 
     def getHistoricalData(
         self,
-        interval: str | None = None,
-        start: str | None = None,
-        end: str | None = None,
-        period: str | None = None,
+        interval: str = None,
+        period: str = None,
+        start: datetime = None,
+        end: datetime = None,
     ) -> pd.DataFrame:
         interval = self.interval if interval is None else interval
         period = self.period if period is None else period
-        if period == "max" and interval in self.max_period:
-            period = self.max_period[interval]
+        if period == "max" and interval in self._max_period:
+            period = self._max_period[interval]
         period_text = f"last {period[:-1]} days" if period != "max" else "maximum days"
         ticker_msg = (
             self.tickers if isinstance(self.tickers, str) else ", ".join(self.tickers)

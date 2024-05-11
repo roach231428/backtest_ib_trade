@@ -191,19 +191,20 @@ class DataGrabberBase(abc.ABC):
     @abc.abstractmethod
     def getHistoricalData(
         self,
-        interval: str = "",
-        start: str = "",
-        end: str = "",
-        period: str = "",
+        interval: str = None,
+        period: str = None,
+        start: datetime.datetime = None,
+        end: datetime.datetime = None,
     ) -> pd.DataFrame:
         """
         Retrieves historical data for a given ticker symbol. If the start, end, and period
         parameters are not provided, will take the maximum period data for the interval.
 
         Parameters:
-            start (str, optional): The start date of the data.
-            end (str, optional): The end date of the data.
+            interval (str, optional): The time range to retrieve data for. Will not be used if start and end are provided.
             period (str, optional): The time period to retrieve data for.
+            start (datetime.datetime, optional): The start datetime of the data.
+            end (datetime.datetime, optional): The end datetime of the data.
 
         Returns:
             pd.DataFrame: A DataFrame containing the historical data with columns
