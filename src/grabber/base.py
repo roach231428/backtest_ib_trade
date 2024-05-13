@@ -191,19 +191,21 @@ class DataGrabberBase(abc.ABC):
     @abc.abstractmethod
     def getHistoricalData(
         self,
-        interval: str = "",
-        start: str = "",
-        end: str = "",
-        period: str = "",
+        tickers: str | List[str] = None,
+        interval: str = None,
+        period: str = None,
+        start: datetime.datetime = None,
+        end: datetime.datetime = None,
     ) -> pd.DataFrame:
         """
         Retrieves historical data for a given ticker symbol. If the start, end, and period
         parameters are not provided, will take the maximum period data for the interval.
 
         Parameters:
-            start (str, optional): The start date of the data.
-            end (str, optional): The end date of the data.
+            interval (str, optional): The time range to retrieve data for. Will not be used if start and end are provided.
             period (str, optional): The time period to retrieve data for.
+            start (datetime.datetime, optional): The start datetime of the data.
+            end (datetime.datetime, optional): The end datetime of the data.
 
         Returns:
             pd.DataFrame: A DataFrame containing the historical data with columns
@@ -215,7 +217,6 @@ class DataGrabberBase(abc.ABC):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def getLatestData(self) -> Dict[str, Dict[str, float]]:
         """
         Retrieves the latest data for a list of tickers.
@@ -228,8 +229,45 @@ class DataGrabberBase(abc.ABC):
         Raises:
             NotImplementedError: This method needs to be implemented in a subclass.
         """
+        hist_df = self.getHistoricalData(period="2d")
+        timestamp = hist_df.index[-1]
+        hist_row = hist_df.iloc[-1, :]
+        if isinstance(self.tickers, str):
+            return {
+                self.tickers: {
+                    "Open": hist_row["Open"],
+                    "High": hist_row["High"],
+                    "Low": hist_row["Low"],
+                    "Close": hist_row["Close"],
+                    "Adj Close": hist_row["Adj Close"],
+                    "Volume": hist_row["Volume"],
+                    "Datetime": timestamp,
+                }
+            }
 
-        raise NotImplementedError
+        res = dict()
+        for tick in self.tickers:
+            if len(self.tickers) > 1:
+                res[tick] = {
+                    "Open": hist_row["Open"][tick],
+                    "High": hist_row["High"][tick],
+                    "Low": hist_row["Low"][tick],
+                    "Close": hist_row["Close"][tick],
+                    "Adj Close": hist_row["Adj Close"][tick],
+                    "Volume": hist_row["Volume"][tick],
+                    "Datetime": timestamp,
+                }
+            else:
+                res[tick] = {
+                    "Open": hist_row["Open"],
+                    "High": hist_row["High"],
+                    "Low": hist_row["Low"],
+                    "Close": hist_row["Close"],
+                    "Adj Close": hist_row["Adj Close"],
+                    "Volume": hist_row["Volume"],
+                    "Datetime": timestamp,
+                }
+        return res
 
     def getLatestCloseData(self) -> float | Dict[str, float]:
         """
