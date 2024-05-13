@@ -1,8 +1,8 @@
+from datetime import datetime
 from typing import Dict, List
 
 import pandas as pd
 import yfinance as yf
-from datetime import datetime
 
 from .base import DataGrabberBase
 
@@ -26,6 +26,7 @@ class YahooFinanceGrabber(DataGrabberBase):
 
     def getHistoricalData(
         self,
+        tickers: str | List[str] = None,
         interval: str = None,
         period: str = None,
         start: datetime = None,
