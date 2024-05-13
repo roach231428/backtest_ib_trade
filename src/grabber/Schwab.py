@@ -1,9 +1,10 @@
 import schwab
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 from base import DataGrabberBase
 from typing import List
+import logging
 
 class SchwabGrabber(DataGrabberBase):
     _max_period = {
@@ -14,7 +15,7 @@ class SchwabGrabber(DataGrabberBase):
         "30m": "270d",
         "1d": "20y",
         "1w": "20y",
-        "1m": "20y",
+        "1M": "20y",
     }
 
     def __init__(
@@ -80,7 +81,8 @@ class SchwabGrabber(DataGrabberBase):
             self.client = client
 
         self.account_hash = self.client.get_account_numbers().json()[0]['hashValue']
-    
+        self.logger = logging.getLogger(__name__)
+
     def getHistoricalData(
         self,
         tickers: str | List[str] = None,
@@ -91,18 +93,23 @@ class SchwabGrabber(DataGrabberBase):
     ) -> pd.DataFrame:
         tickers = self.tickers if (tickers is None) else tickers
 
-        period_text = ""
-        if start is None or end is None:
-            period = self.period if (not isinstance(period, str)) and (period is None) else period
-            if period == "max":
-                period = self._max_period[interval] if interval in self._max_period else None
-            period_type = period[-1].lower()
+        if start is None:
+            start = datetime(year=1971, month=1, day=1)
+        if end is None:
+            end = (datetime.utcnow() + timedelta(days=7))
+
+        PriceHistory = schwab.client.Client.PriceHistory
+        time_text = ""
+
+        # Setting the period
+        period = self.period if (not isinstance(period, str)) and (period is None) else period
+        if period != "max" and period is not None:
+            period_type_abbr = period[-1].lower()
             period_num = int(re.search(r"\d+", period).group())
-            PriceHistory = schwab.client.Client.PriceHistory
-            if period_type == "d":
+            if period_type_abbr == "d":
                 period_type = PriceHistory.PeriodType.DAY
                 valid_periods = {
-                    x.value: x for x in 
+                    x.value: x for x in
                     [
                         PriceHistory.Period.ONE_DAY,
                         PriceHistory.Period.TWO_DAYS,
@@ -111,11 +118,11 @@ class SchwabGrabber(DataGrabberBase):
                         PriceHistory.Period.FIVE_DAYS,
                         PriceHistory.Period.TEN_DAYS,
                     ]
-                }   
-            elif period_type == "m":
+                }
+            elif period_type_abbr == "m":
                 period_type = PriceHistory.PeriodType.MONTH
                 valid_periods = {
-                    x.value: x for x in 
+                    x.value: x for x in
                     [
                         PriceHistory.Period.ONE_MONTH,
                         PriceHistory.Period.TWO_MONTHS,
@@ -123,10 +130,10 @@ class SchwabGrabber(DataGrabberBase):
                         PriceHistory.Period.SIX_MONTHS,
                     ]
                 }
-            elif period_type == "y":
+            elif period_type_abbr == "y":
                 period_type = PriceHistory.PeriodType.YEAR
                 valid_periods = {
-                    x.value: x for x in 
+                    x.value: x for x in
                     [
                         PriceHistory.Period.ONE_YEAR,
                         PriceHistory.Period.TWO_YEARS,
@@ -136,21 +143,28 @@ class SchwabGrabber(DataGrabberBase):
                         PriceHistory.Period.FIFTEEN_YEARS,
                         PriceHistory.Period.TWENTY_YEARS,
                     ]
-                } 
+                }
             else:
                 period_type = PriceHistory.PeriodType.DAY
                 period_num = PriceHistory.Period.ONE_DAY
                 valid_periods = {PriceHistory.Period.ONE_DAY.value: PriceHistory.Period.ONE_DAY}
             if period_num not in valid_periods:
-                err_msg = f"Invalid period: {period_num}{period_type}. Valid values are "
+                err_msg = f"Invalid period: {period}. Valid values are "
                 for valid_period in valid_periods.keys():
-                    err_msg += f"{valid_period}{period_type}, "
+                    err_msg += f"{valid_period}{period_type_abbr}, "
                 err_msg = err_msg[:-2] + "."
-                raise ValueError(err_msg)
+                period_val = list(valid_periods.values())[0]
+                err_msg += f"The period will be set as {period_val.value} {period_type.value}."
+                self.logger.warning(err_msg)
             else:
                 period_val = valid_periods[period_num]
-            period_text = f"last {period_num} {period_type.value}"
+            time_text = f"last {period_num} {period_type.value}"
+        else:
+            period_type = PriceHistory.PeriodType.DAY
+            period_num = PriceHistory.Period.ONE_DAY
+            time_text = f"from {start.date()} to {end.date()}"
 
+        # Setting interval
         interval = self.interval if interval is None else interval
         interval_type = interval[-1].lower()
         interval_num = int(re.search(r"\d+", interval).group())
@@ -186,11 +200,11 @@ class SchwabGrabber(DataGrabberBase):
             raise ValueError(err_msg)
         else:
             interval_val = valid_intervals[interval_num]
-        
+
         ticker_list = self.tickers if isinstance(self.tickers, list) else [self.tickers]
         res_df = pd.DataFrame()
         for ticker in ticker_list:
-            self.logger.info(f"Getting {ticker} {interval} {period_text} data...")
+            self.logger.info(f"Getting {ticker} {interval} {time_text} data...")
 
             res = self.client.get_price_history(
                 symbol=ticker,
