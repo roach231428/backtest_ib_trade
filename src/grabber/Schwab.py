@@ -2,7 +2,7 @@ import schwab
 import pandas as pd
 from datetime import datetime, timedelta
 import re
-from base import DataGrabberBase
+from .base import DataGrabberBase
 from typing import List
 import logging
 
@@ -161,7 +161,7 @@ class SchwabGrabber(DataGrabberBase):
             time_text = f"last {period_num} {period_type.value}"
         else:
             period_type = PriceHistory.PeriodType.DAY
-            period_num = PriceHistory.Period.ONE_DAY
+            period_val = PriceHistory.Period.ONE_DAY
             time_text = f"from {start.date()} to {end.date()}"
 
         # Setting interval
@@ -201,10 +201,10 @@ class SchwabGrabber(DataGrabberBase):
         else:
             interval_val = valid_intervals[interval_num]
 
-        ticker_list = self.tickers if isinstance(self.tickers, list) else [self.tickers]
+        ticker_list = self.tickers if isinstance(tickers, list) else [tickers]
         res_df = pd.DataFrame()
         for ticker in ticker_list:
-            self.logger.info(f"Getting {ticker} {interval} {time_text} data...")
+            self.logger.info(f"Getting {ticker} {interval_val.value} {interval_type.value} {time_text} data...")
 
             res = self.client.get_price_history(
                 symbol=ticker,
@@ -236,3 +236,17 @@ class SchwabGrabber(DataGrabberBase):
                 candle_df = candle_df.sort_index(axis=1)
                 res_df = res_df.sort_index(axis=1).merge(candle_df, on="Datetime")
         return res_df.set_index("Datetime")
+
+
+if __name__ == "__main__":
+    import json
+    with open("credentials/schwab/api.json") as f:
+        credentials = json.load(f)
+    grabber = SchwabGrabber(
+        api_key=credentials["api_key"],
+        api_secret=credentials["api_secret"],
+        tickers="AAPL",
+        interval="1m",
+    )
+    df = grabber.getHistoricalData()
+    df.head()
