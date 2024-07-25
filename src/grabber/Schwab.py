@@ -22,18 +22,18 @@ class SchwabGrabber(DataGrabberBase):
     }
 
     def __init__(
-            self,
-            api_key: str,
-            api_secret: str,
-            tickers: List[str],
-            interval: str,
-            period: str = "max",
-            name: str = "",
-            token_path: str = "token1.json",
-            callback_url: str = "https://127.0.0.1:8182/",
-            account: str | None = None,
-            client: schwab.client.Client | schwab.client.AsyncClient | None = None,
-        ) -> None:
+        self,
+        api_key: str,
+        api_secret: str,
+        tickers: List[str],
+        interval: str,
+        period: str = "max",
+        name: str = "",
+        token_path: str = "token1.json",
+        callback_url: str = "https://127.0.0.1:8182/",
+        account: str | None = None,
+        client: schwab.client.Client | schwab.client.AsyncClient | None = None,
+    ) -> None:
         """
         Initializes a new instance of the SchwabGrabber class.
 
