@@ -14,18 +14,18 @@ from src.strategy.base import StrategyBase
 
 
 class TraderBase(abc.ABC):
-    def __init__(self, tickers: List[str], run_interval: float, buffer_time: float):
+    def __init__(self, tickers: List[str], sleep_interval: float, buffer_time: float):
         """
         Initialize the YourClassName instance with provided parameters.
 
         Parameters:
             tickers (List[str]): List of ticker names or symbols to be traded.
-            run_interval (float): The time interval, in seconds, between strategy execution.
+            sleep_interval (float): The sleep time interval, in seconds, for each loop.
             buffer_time (float): The time, in seconds, to allow for data retrieval and processing.
 
         Attributes:
             tickers (List[str]): List of tickers to be traded.
-            run_interval (float): Time interval for strategy execution.
+            sleep_interval (float): Sleep time interval for each loop.
             strategy (StrategyBase): Strategy to be used for trading (initialized as None).
             broker (BrokerBase): Broker for executing trading orders (initialized as None).
             grabbers (Dict[str, DataGrabberBase]): Data grabbers for collecting ticker data.
@@ -36,7 +36,7 @@ class TraderBase(abc.ABC):
         attribute values.
         """
         self.tickers = tickers
-        self.run_interval = run_interval
+        self.sleep_interval = sleep_interval
         self.strategy: StrategyBase = None
         self.broker: BrokerBase = None
         self.grabbers: Dict[str, DataGrabberBase] = dict()
