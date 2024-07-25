@@ -191,6 +191,7 @@ class DataGrabberBase(abc.ABC):
     @abc.abstractmethod
     def getHistoricalData(
         self,
+        tickers: str | List[str] = None,
         interval: str = None,
         period: str = None,
         start: datetime.datetime = None,

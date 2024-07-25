@@ -1,10 +1,13 @@
-import schwab
-import pandas as pd
-from datetime import datetime, timedelta
-import re
-from .base import DataGrabberBase
-from typing import List
 import logging
+import re
+from datetime import datetime, timedelta
+from typing import List
+
+import pandas as pd
+import schwab
+
+from .base import DataGrabberBase
+
 
 class SchwabGrabber(DataGrabberBase):
     _max_period = {
@@ -91,21 +94,25 @@ class SchwabGrabber(DataGrabberBase):
         if start is None:
             start = datetime(year=1971, month=1, day=1)
         if end is None:
-            end = (datetime.utcnow() + timedelta(days=7))
+            end = datetime.utcnow() + timedelta(days=7)
 
         PriceHistory = schwab.client.Client.PriceHistory
         time_text = ""
 
         # Setting the period
-        period = self.period if (not isinstance(period, str)) and (period is None) else period
+        period = (
+            self.period
+            if (not isinstance(period, str)) and (period is None)
+            else period
+        )
         if period != "max" and period is not None:
             period_type_abbr = period[-1].lower()
             period_num = int(re.search(r"\d+", period).group())
             if period_type_abbr == "d":
                 period_type = PriceHistory.PeriodType.DAY
                 valid_periods = {
-                    x.value: x for x in
-                    [
+                    x.value: x
+                    for x in [
                         PriceHistory.Period.ONE_DAY,
                         PriceHistory.Period.TWO_DAYS,
                         PriceHistory.Period.THREE_DAYS,
@@ -117,8 +124,8 @@ class SchwabGrabber(DataGrabberBase):
             elif period_type_abbr == "m":
                 period_type = PriceHistory.PeriodType.MONTH
                 valid_periods = {
-                    x.value: x for x in
-                    [
+                    x.value: x
+                    for x in [
                         PriceHistory.Period.ONE_MONTH,
                         PriceHistory.Period.TWO_MONTHS,
                         PriceHistory.Period.THREE_MONTHS,
@@ -128,8 +135,8 @@ class SchwabGrabber(DataGrabberBase):
             elif period_type_abbr == "y":
                 period_type = PriceHistory.PeriodType.YEAR
                 valid_periods = {
-                    x.value: x for x in
-                    [
+                    x.value: x
+                    for x in [
                         PriceHistory.Period.ONE_YEAR,
                         PriceHistory.Period.TWO_YEARS,
                         PriceHistory.Period.THREE_YEARS,
@@ -142,14 +149,18 @@ class SchwabGrabber(DataGrabberBase):
             else:
                 period_type = PriceHistory.PeriodType.DAY
                 period_num = PriceHistory.Period.ONE_DAY
-                valid_periods = {PriceHistory.Period.ONE_DAY.value: PriceHistory.Period.ONE_DAY}
+                valid_periods = {
+                    PriceHistory.Period.ONE_DAY.value: PriceHistory.Period.ONE_DAY
+                }
             if period_num not in valid_periods:
                 err_msg = f"Invalid period: {period}. Valid values are "
                 for valid_period in valid_periods.keys():
                     err_msg += f"{valid_period}{period_type_abbr}, "
                 err_msg = err_msg[:-2] + "."
                 period_val = list(valid_periods.values())[0]
-                err_msg += f"The period will be set as {period_val.value} {period_type.value}."
+                err_msg += (
+                    f"The period will be set as {period_val.value} {period_type.value}."
+                )
                 self.logger.warning(err_msg)
             else:
                 period_val = valid_periods[period_num]
@@ -166,8 +177,8 @@ class SchwabGrabber(DataGrabberBase):
         if interval_type == "m":
             interval_type = PriceHistory.FrequencyType.MINUTE
             valid_intervals = {
-                x.value: x for x in
-                [
+                x.value: x
+                for x in [
                     PriceHistory.Frequency.EVERY_MINUTE,
                     PriceHistory.Frequency.EVERY_FIVE_MINUTES,
                     PriceHistory.Frequency.EVERY_TEN_MINUTES,
@@ -177,18 +188,28 @@ class SchwabGrabber(DataGrabberBase):
             }
         elif interval_type == "d":
             interval_type = PriceHistory.FrequencyType.DAILY
-            valid_intervals = {PriceHistory.Frequency.DAILY.value: PriceHistory.Frequency.DAILY}
+            valid_intervals = {
+                PriceHistory.Frequency.DAILY.value: PriceHistory.Frequency.DAILY
+            }
         elif interval_type == "w":
             interval_type = PriceHistory.FrequencyType.WEEKLY
-            valid_intervals = {PriceHistory.Frequency.WEEKLY.value: PriceHistory.Frequency.WEEKLY}
+            valid_intervals = {
+                PriceHistory.Frequency.WEEKLY.value: PriceHistory.Frequency.WEEKLY
+            }
         elif interval_type == "M":
             interval_type = PriceHistory.FrequencyType.MONTHLY
-            valid_intervals = {PriceHistory.Frequency.MONTHLY.value: PriceHistory.Frequency.MONTHLY}
+            valid_intervals = {
+                PriceHistory.Frequency.MONTHLY.value: PriceHistory.Frequency.MONTHLY
+            }
         else:
             interval_type = PriceHistory.FrequencyType.DAILY
-            valid_intervals = {PriceHistory.Frequency.DAILY.value: PriceHistory.Frequency.DAILY}
+            valid_intervals = {
+                PriceHistory.Frequency.DAILY.value: PriceHistory.Frequency.DAILY
+            }
         if interval_num not in valid_intervals:
-            err_msg = f"Invalid interval: {interval_num}{interval_type}. Valid values are "
+            err_msg = (
+                f"Invalid interval: {interval_num}{interval_type}. Valid values are "
+            )
             for valid_interval in valid_intervals.keys():
                 err_msg += f"{valid_interval}{interval_type}, "
             err_msg = err_msg[:-2] + "."
@@ -199,7 +220,9 @@ class SchwabGrabber(DataGrabberBase):
         ticker_list = self.tickers if isinstance(tickers, list) else [tickers]
         res_df = pd.DataFrame()
         for ticker in ticker_list:
-            self.logger.info(f"Getting {ticker} {interval_val.value} {interval_type.value} {time_text} data...")
+            self.logger.info(
+                f"Getting {ticker} {interval_val.value} {interval_type.value} {time_text} data..."
+            )
 
             res = self.client.get_price_history(
                 symbol=ticker,
@@ -211,8 +234,10 @@ class SchwabGrabber(DataGrabberBase):
                 end_datetime=end,
                 need_extended_hours_data=True,
             )
-            candle_df = pd.DataFrame.from_dict(res.json()['candles'])
-            candle_df["datetime"] = [datetime.fromtimestamp(x/1000) for x in candle_df["datetime"]]
+            candle_df = pd.DataFrame.from_dict(res.json()["candles"])
+            candle_df["datetime"] = [
+                datetime.fromtimestamp(x / 1000) for x in candle_df["datetime"]
+            ]
             candle_df.columns = [x.capitalize() for x in candle_df.columns]
             candle_df["Adj Close"] = candle_df["Close"]
             candle_df = candle_df.sort_index()
@@ -220,14 +245,18 @@ class SchwabGrabber(DataGrabberBase):
                 res_df = candle_df
             else:
                 if not isinstance(res_df.columns, pd.MultiIndex):
-                    res_df.columns = pd.MultiIndex.from_arrays([
-                        res_df.columns,
-                        [ticker_list[0]] * len(res_df.columns),
-                    ])
-                candle_df.columns = pd.MultiIndex.from_arrays([
-                    candle_df.columns,
-                    [ticker] * len(candle_df.columns),
-                ])
+                    res_df.columns = pd.MultiIndex.from_arrays(
+                        [
+                            res_df.columns,
+                            [ticker_list[0]] * len(res_df.columns),
+                        ]
+                    )
+                candle_df.columns = pd.MultiIndex.from_arrays(
+                    [
+                        candle_df.columns,
+                        [ticker] * len(candle_df.columns),
+                    ]
+                )
                 candle_df = candle_df.sort_index(axis=1)
                 res_df = res_df.sort_index(axis=1).merge(candle_df, on="Datetime")
         return res_df.set_index("Datetime")
@@ -235,6 +264,7 @@ class SchwabGrabber(DataGrabberBase):
 
 if __name__ == "__main__":
     import json
+
     with open("credentials/schwab/api.json") as f:
         credentials = json.load(f)
     grabber = SchwabGrabber(
