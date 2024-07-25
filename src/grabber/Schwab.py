@@ -85,9 +85,7 @@ class SchwabGrabber(DataGrabberBase):
     def convert_timestamp(self, ts: int, tz: str = "America/New_York") -> datetime:
         if ts > 1e12:
             ts /= 1000
-        return (
-            datetime.fromtimestamp(ts, tz=pytz.timezone(tz)).replace(tzinfo=None)
-        )
+        return datetime.fromtimestamp(ts, tz=pytz.timezone(tz)).replace(tzinfo=None)
 
     def getHistoricalData(
         self,
