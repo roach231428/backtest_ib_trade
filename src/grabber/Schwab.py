@@ -82,6 +82,13 @@ class SchwabGrabber(DataGrabberBase):
         self.logger.info("Using account %s.", account)
         self.account_hash = account_hash_map[account]
 
+    def convert_timestamp(self, ts: int, tz: str = "America/New_York") -> datetime:
+        if ts > 1e12:
+            ts /= 1000
+        return (
+            datetime.fromtimestamp(ts, tz=pytz.timezone(tz)).replace(tzinfo=None)
+        )
+
     def getHistoricalData(
         self,
         tickers: str | List[str] = None,
@@ -236,11 +243,12 @@ class SchwabGrabber(DataGrabberBase):
                 need_extended_hours_data=True,
             )
             candle_df = pd.DataFrame.from_dict(res.json()["candles"])
-            candle_df["datetime"] = [
-                datetime.fromtimestamp(x / 1000, tz=pytz.timezone("America/New_York"))
-                for x in candle_df["datetime"]
-            ]
-            candle_df["datetime"] = candle_df["datetime"].dt.tz_localize(None)
+            candle_df["datetime"] = (
+                pd.to_datetime(candle_df["datetime"], unit="ms")
+                .dt.tz_localize("UTC")
+                .dt.tz_convert("America/New_York")
+                .dt.tz_localize(None)
+            )
             candle_df.columns = [x.capitalize() for x in candle_df.columns]
             candle_df["Adj Close"] = candle_df["Close"]
             candle_df = candle_df.sort_index()
