@@ -1,5 +1,6 @@
 import abc
 import datetime
+import logging
 import time
 from typing import Dict, List
 
@@ -9,6 +10,9 @@ from model.models import Position
 
 
 class BrokerBase(abc.ABC):
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+
     @abc.abstractmethod
     def start(self, **kwargs) -> None:
         """
@@ -98,6 +102,7 @@ class BrokerBase(abc.ABC):
         instrument: str,
         qty: float,
         orderType: str,
+        exchange: str,
         price: float = 0,
         stop_price: float = 0,
         **kwargs,

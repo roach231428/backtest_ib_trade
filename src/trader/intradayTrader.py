@@ -1,10 +1,7 @@
 import sys
-
-sys.path.append("src")
-import logging
 from typing import List
 
-from model.trader import TraderBase
+from .base import TraderBase
 
 
 class IntradayTrader(TraderBase):
@@ -19,7 +16,7 @@ class IntradayTrader(TraderBase):
                 break
 
             now = self.broker.now()
-            logging.debug(f"Current time: {now}")
+            self.logger.debug(f"Current time: {now}")
             if now.hour == 20 and now.minute == 59:
                 self.stop()
                 break
@@ -56,14 +53,14 @@ class IntradayTrader(TraderBase):
                 try:
                     instructions = self.strategy.next()
                     for instr in instructions:
-                        logging.info(f"New order instruction: {instr}")
+                        self.logger.info(f"New order instruction: {instr}")
                         order = self.broker.placeStockOrder(**instr)
-                        logging.info(order)
+                        self.logger.info(order)
                 except Exception as e:
-                    logging.error(e)
+                    self.logger.error(e)
             else:
-                logging.debug(f"Not now.")
-            self.broker.sleep(self.sleep_interval)
+                self.logger.debug(f"Not now.")
+            self.broker.sleep(self.run_interval)
 
     def stop(self) -> None:
         self.broker.closePosition(self.tickers)

@@ -1,18 +1,14 @@
 import sys
-
-import ib_insync as ib
-import pandas as pd
-
-sys.path.append("src")
-import logging
 import time
 from typing import Dict, List, Union
 
+import ib_insync as ib
+import pandas as pd
 from backtrader import CommInfoBase
 from ib_insync.order import UNSET_DOUBLE
 
-from model.broker import BrokerBase
-from model.models import Position
+from ..model.models import Position
+from .base import BrokerBase
 
 
 class CommissionSchemeFixed(CommInfoBase):
@@ -69,7 +65,7 @@ class InteractiveBrokers(BrokerBase):
         self._clientId = clientId
         self._account = account
 
-        self.orderbyid: Dict[int, ib.Order] = dict()
+        self.orderbyid: Dict[str, ib.Order] = dict()
         self.positions: pd.DataFrame = pd.DataFrame()
         self.cash: float = 0
 
@@ -178,7 +174,7 @@ class InteractiveBrokers(BrokerBase):
         price: float = UNSET_DOUBLE,
         stop_price: float = UNSET_DOUBLE,
         **kwargs,
-    ) -> int:
+    ) -> str:
 
         symbol, currency, trade_type = instrument.upper().split("-")
         contract: Union[ib.Stock, ib.Future] = None
@@ -208,7 +204,7 @@ class InteractiveBrokers(BrokerBase):
         )
         trade = self._ib.placeOrder(contract, order)
         self._ib.waitOnUpdate()
-        order_id = trade.order.orderId
+        order_id = str(trade.order.orderId)
         self.orderbyid[order_id] = order
         order_status = trade.orderStatus
         log = trade.log[-1]
@@ -216,9 +212,9 @@ class InteractiveBrokers(BrokerBase):
         if order_status.status == ib.OrderStatus.Filled:
             msg += f" {ib.OrderStatus.Filled} position at price {order_status.avgFillPrice}"
         msg += f". Timestamp: {log.time}"
-        logging.info(msg)
+        self.logger.info(msg)
         if log.errorCode != 0:
-            logging.error(log.message)
+            self.logger.error(log.message)
         return order_id
 
     def closePosition(self, tickers: str | List[str] = []) -> None:
@@ -226,7 +222,7 @@ class InteractiveBrokers(BrokerBase):
             tickers = [tickers]
         positions = self.getHoldings(tickers)
         if len(tickers) == 0:
-            tickers = positions.keys()
+            tickers = list(positions.keys())
         for ticker in tickers:
             if ticker not in positions:
                 continue
@@ -236,36 +232,36 @@ class InteractiveBrokers(BrokerBase):
                 orderType="MKT",
             )
 
-    def getTradesById(self, order_ids: List[int] = []) -> Dict[int, ib.Trade | None]:
+    def getTradesById(self, order_ids: List[str] = []) -> Dict[str, ib.Trade | None]:
         all_trades = self._ib.trades()
         res = dict()
         for id in order_ids:
             res[id] = next((x for x in all_trades if x.order.orderId == id), None)
         return res
 
-    def getOrdersById(self, order_ids: List[int] = []) -> Dict[int, ib.Order | None]:
+    def getOrdersById(self, order_ids: List[str] = []) -> Dict[str, ib.Order | None]:
         trades = self.getTradesById(order_ids)
         return {
             oid: trades[oid].order if trades[oid] is not None else None
             for oid in order_ids
         }
 
-    def cancelOrders(self, order_ids: List[int] = []) -> None:
+    def cancelOrders(self, order_ids: List[str] = []) -> None:
         open_orders = [x.order for x in self._ib.openTrades()]
         if len(order_ids) == 0:
-            order_ids = list(set([x.orderId for x in open_orders]))
+            order_ids = list(set([str(x.orderId) for x in open_orders]))
         else:
-            order_ids = list(set([int(id) for id in order_ids]))
+            order_ids = list(set([id for id in order_ids]))
         for order in open_orders:
             if order.orderId in order_ids:
                 self._ib.cancelOrder(order)
-                logging.warning(f"Canceled order {order.orderId}.")
+                self.logger.warning(f"Order {order.orderId} has been canceled.")
                 self.sleep(0.001)
 
-    def isPending(self, order_id: int) -> bool:
+    def isPending(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         res = trade.orderStatus.status in {
             ib.OrderStatus.ApiPending,
@@ -274,27 +270,27 @@ class InteractiveBrokers(BrokerBase):
         }
         return res
 
-    def isSumbitted(self, order_id: int) -> bool:
+    def isSumbitted(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         return trade.orderStatus.status in {
             ib.OrderStatus.Submitted,
             ib.OrderStatus.PreSubmitted,
         }
 
-    def isFilled(self, order_id: int) -> bool:
+    def isFilled(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         return trade.orderStatus.status == ib.OrderStatus.Filled
 
-    def isCancelled(self, order_id: int) -> bool:
+    def isCancelled(self, order_id: str) -> bool:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return False
         res = trade.orderStatus.status in {
             ib.OrderStatus.PendingCancel,
@@ -303,10 +299,10 @@ class InteractiveBrokers(BrokerBase):
         }
         return res
 
-    def getFilledPrice(self, order_id: int) -> float:
+    def getFilledPrice(self, order_id: str) -> float:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
-            logging.error(f"Order {order_id} not found.")
+            self.logger.error(f"Order {order_id} not found.")
             return 0.0
         return trade.orderStatus.avgFillPrice
 

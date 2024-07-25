@@ -1,11 +1,12 @@
 import abc
+import logging
 from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 
-from model.broker import BrokerBase
-from model.data_grabber import DataGrabberBase
+from src.broker.base import BrokerBase
+from src.grabber.base import DataGrabberBase
 
 
 class Parameter:
@@ -26,6 +27,7 @@ class StrategyBase(abc.ABC):
         self.grabbers = dict()
         self.broker = None
         self.p = Parameter()
+        self.logger = logging.getLogger(__name__)
 
     @abc.abstractmethod
     def next(self) -> List[dict]:

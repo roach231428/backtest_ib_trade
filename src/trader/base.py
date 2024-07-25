@@ -8,9 +8,9 @@ from typing import Dict, List
 
 import pytz
 
-from model.broker import BrokerBase
-from model.data_grabber import DataGrabberBase
-from model.strategy import StrategyBase
+from src.broker.base import BrokerBase
+from src.grabber.base import DataGrabberBase
+from src.strategy.base import StrategyBase
 
 
 class TraderBase(abc.ABC):
@@ -42,6 +42,7 @@ class TraderBase(abc.ABC):
         self.grabbers: Dict[str, DataGrabberBase] = dict()
         self.break_flag: bool = False
         self.buffer_time = buffer_time
+        self.logger = logging.getLogger(__name__)
 
     def setStrategy(self, strategy: StrategyBase) -> None:
         self.strategy = strategy
