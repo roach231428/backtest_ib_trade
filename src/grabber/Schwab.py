@@ -5,6 +5,7 @@ from typing import List
 
 import pandas as pd
 import schwab
+import pytz
 
 from .base import DataGrabberBase
 
@@ -236,8 +237,10 @@ class SchwabGrabber(DataGrabberBase):
             )
             candle_df = pd.DataFrame.from_dict(res.json()["candles"])
             candle_df["datetime"] = [
-                datetime.fromtimestamp(x / 1000) for x in candle_df["datetime"]
+                datetime.fromtimestamp(x / 1000, tz=pytz.timezone("America/New_York"))
+                for x in candle_df["datetime"]
             ]
+            candle_df["datetime"] = candle_df["datetime"].dt.tz_localize(None)
             candle_df.columns = [x.capitalize() for x in candle_df.columns]
             candle_df["Adj Close"] = candle_df["Close"]
             candle_df = candle_df.sort_index()
