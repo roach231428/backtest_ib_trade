@@ -29,7 +29,7 @@ class SchwabGrabber(DataGrabberBase):
             interval: str,
             period: str = "max",
             name: str = "",
-            token_path: str = None,
+            token_path: str = "token1.json",
             callback_url: str = "https://127.0.0.1:8182/",
             account: str | None = None,
             client: schwab.client.Client | schwab.client.AsyncClient | None = None,
