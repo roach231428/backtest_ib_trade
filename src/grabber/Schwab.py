@@ -27,8 +27,9 @@ class SchwabGrabber(DataGrabberBase):
             period: str = "max",
             name: str = "",
             token_path: str = None,
-            callback_url: str = "https://127.0.0.1",
-            client: schwab.client.Client | schwab.client.AsyncClient = None,
+            callback_url: str = "https://127.0.0.1:8182/",
+            account: str | None = None,
+            client: schwab.client.Client | schwab.client.AsyncClient | None = None,
         ) -> None:
         """
         Initializes a new instance of the SchwabGrabber class.
@@ -40,7 +41,7 @@ class SchwabGrabber(DataGrabberBase):
             interval (str): The interval at which to grab data.
             period (str, optional): The period of data to grab. Defaults to "max".
             name (str, optional): The name of the grabber. Defaults to "".
-            token_path (str, optional): The path to the token file. Defaults to "./token1".
+            token_path (str, optional): The path to the token file. Defaults to "./token1.json".
             callback_url (str, optional): The callback URL for authentication. Defaults to "https://127.0.0.1".
             client (schwab.client.Client | schwab.client.AsyncClient, optional): The client object. Defaults to None.
 
@@ -54,42 +55,36 @@ class SchwabGrabber(DataGrabberBase):
         """
 
         super().__init__(tickers, interval=interval, period=period, name=name)
+        self.logger = logging.getLogger(__name__)
 
         if client is None:
-            if token_path is not None:
-                self.client = schwab.auth.client_from_token_file(
-                    token_path=token_path,
-                    api_key=api_key,
-                    app_secret=api_secret,
-                )
-            else:
-                token_path = "./token1"
-                # self.client = schwab.auth.client_from_login_flow(
-                #     webdriver=webdriver.Edge(),
-                #     api_key=api_key,
-                #     app_secret=api_secret,
-                #     callback_url=callback_url,
-                #     token_path=token_path,
-                # )
-                self.client = schwab.auth.client_from_manual_flow(
-                    api_key=api_key,
-                    app_secret=api_secret,
-                    callback_url=callback_url,
-                    token_path=token_path,
-                )
+            self.client = schwab.auth.easy_client(
+                api_key=api_key,
+                app_secret=api_secret,
+                callback_url=callback_url,
+                token_path=token_path,
+            )
         else:
             self.client = client
 
-        self.account_hash = self.client.get_account_numbers().json()[0]['hashValue']
-        self.logger = logging.getLogger(__name__)
+        acc_res = self.client.get_account_numbers().json()
+        account_hash_map = {x["accountNumber"]: x["hashValue"] for x in acc_res}
+        if account is not None:
+            if account not in account_hash_map.keys():
+                self.account_hash = account_hash_map[account]
+                self.logger.error("Account %s not found.", account)
+        else:
+            account = list(account_hash_map.keys())[0]
+        self.logger.info("Using account %s.", account)
+        self.account_hash = account_hash_map[account]
 
     def getHistoricalData(
         self,
         tickers: str | List[str] = None,
         interval: str = None,
         period: str = None,
-        start: datetime = None,
-        end: datetime = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         tickers = self.tickers if (tickers is None) else tickers
 
@@ -219,7 +214,7 @@ class SchwabGrabber(DataGrabberBase):
             candle_df = pd.DataFrame.from_dict(res.json()['candles'])
             candle_df["datetime"] = [datetime.fromtimestamp(x/1000) for x in candle_df["datetime"]]
             candle_df.columns = [x.capitalize() for x in candle_df.columns]
-            candle_df["Adj Colse"] = candle_df["Close"]
+            candle_df["Adj Close"] = candle_df["Close"]
             candle_df = candle_df.sort_index()
             if res_df.empty:
                 res_df = candle_df
