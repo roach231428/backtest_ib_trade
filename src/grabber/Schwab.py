@@ -1,7 +1,11 @@
+import aiofiles
+import asyncio
 import logging
+import os
 import re
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Dict
 
 import pandas as pd
 import schwab
@@ -31,6 +35,7 @@ class SchwabGrabber(DataGrabberBase):
         period: str = "max",
         name: str = "",
         token_path: str = "token1.json",
+        data_dir: str = "./data",
         callback_url: str = "https://127.0.0.1:8182/",
         account: str | None = None,
         client: schwab.client.Client | schwab.client.AsyncClient | None = None,
@@ -81,6 +86,9 @@ class SchwabGrabber(DataGrabberBase):
             account = list(account_hash_map.keys())[0]
         self.logger.info("Using account %s.", account)
         self.account_hash = account_hash_map[account]
+        self.stream_client = schwab.streaming.StreamClient(client, account_id=account)
+        self.locks = dict()
+        self.data_dir = data_dir
 
     def convert_timestamp(self, ts: int, tz: str = "America/New_York") -> datetime:
         if ts > 1e12:
@@ -269,6 +277,100 @@ class SchwabGrabber(DataGrabberBase):
                 candle_df = candle_df.sort_index(axis=1)
                 res_df = res_df.sort_index(axis=1).merge(candle_df, on="Datetime")
         return res_df.set_index("Datetime")
+
+    def convert_timestamp(self, ts: int | str, tz: str = "America/New_York") -> datetime:
+        if isinstance(ts, str):
+            ts = int(ts)
+        if ts > 1e12:
+            ts /= 1000
+        return datetime.fromtimestamp(ts, tz=pytz.timezone(tz)).replace(tzinfo=None)
+
+    async def async_append_to_csv(self, df: pd.DataFrame, filename: str, lock: asyncio.Lock):
+        async with self.acquire_lock(lock):
+            file_exists = os.path.exists(filename)
+            async with aiofiles.open(filename, mode='a') as f:
+                # Convert DataFrame to CSV string
+                csv_buffer = df.to_csv(index=False, header=not file_exists, mode='a')
+                await f.write(csv_buffer)
+
+    async def sub_l2_book_eq(self, tickers: List[str], handle_func: function):
+        await self.stream_client.login()
+        # Always add handlers before subscribing because many streams start sending
+        # data immediately after success, and messages with no handlers are dropped.
+        self.stream_client.add_nasdaq_book_handler(handle_func)
+        await self.stream_client.nasdaq_book_subs(tickers)
+
+        self.stream_client.add_nyse_book_handler(handle_func)
+        await self.stream_client.nyse_book_subs(tickers)
+
+        while True:
+            await self.stream_client.handle_message()
+
+    async def sub_l1_eq(self, tickers: List[str], handle_func: function):
+        await self.stream_client.login()
+        # Always add handlers before subscribing because many streams start sending
+        # data immediately after success, and messages with no handlers are dropped.
+        self.stream_client.add_level_one_equity_handler(handle_func)
+        await self.stream_client.level_one_equity_subs(tickers)
+        while True:
+            await self.stream_client.handle_message()
+
+    async def parse_orderbook_message(self, message: Dict):
+        for content in message["content"]:
+            ticker = content["key"]
+            dt = self.convert_timestamp(content["BOOK_TIME"])
+
+            df_bids = pd.json_normalize(content["BIDS"], 'BIDS', ['BID_PRICE', 'TOTAL_VOLUME', 'NUM_BIDS'])
+            df_bids = df_bids.rename({"BID_PRICE": "PRICE", "BID_VOLUME": "VOLUME", "NUM_BIDS": "NUM_TRADES"}, axis=1)
+            df_bids["BID_ASK"] = "B"
+            df_asks = pd.json_normalize(content["ASKS"], 'ASKS', ['ASK_PRICE', 'TOTAL_VOLUME', 'NUM_ASKS'])
+            df_asks = df_asks.rename({"ASK_PRICE": "PRICE", "ASK_VOLUME": "VOLUME", "NUM_ASKS": "NUM_TRADES"}, axis=1)
+            df_asks["BID_ASK"] = "A"
+            df_book = pd.concat([df_bids, df_asks])
+            if df_book.empty:
+                continue
+            df_book["DATETIME"] = dt
+            df_book = df_book.drop(["SEQUENCE"], axis=1)
+            # df_book["TIMESTAMP"] = content["BOOK_TIME"]
+
+            if ticker not in self.locks:
+                self.locks[ticker] = asyncio.Lock()
+            lock = self.locks[ticker]
+
+            save_dir = os.path.join(self.data_dir, str(dt.year), str(dt.month), str(dt.day))
+            os.makedirs(save_dir, exist_ok=True)
+            opt_file = os.path.join(save_dir, f"l2_book_{ticker}_{dt.strftime('%Y%m%d')}.csv")
+            await self.async_append_to_csv(df_book, opt_file, lock)
+
+            if ticker == "VOO" and message["service"] == "NYSE_BOOK":
+                os.system('cls')
+                print(ticker, "\t", dt)
+                print("  PRICE ", "NUM_TRADES", " EXCHANGE", "VOLUME")
+                print(
+                    df_book
+                    .query("BID_ASK == 'A'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
+                    .sort_values("PRICE", ascending=False)
+                    .to_string(index=False, header=False, col_space=7)
+                )
+                print("-------------------------------------")
+                print(
+                    df_book
+                    .query("BID_ASK == 'B'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
+                    .sort_values("PRICE", ascending=False)
+                    .to_string(index=False, header=False, col_space=7)
+                )
+                print("\n")
+
+    @asynccontextmanager
+    async def acquire_lock(self, lock: asyncio.Lock):
+        await lock.acquire()
+        try:
+            yield
+        finally:
+            lock.release()
+
+    def print_message(self, message):
+        print(json.dumps(message, indent=4))
 
 
 if __name__ == "__main__":
