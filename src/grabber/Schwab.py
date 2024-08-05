@@ -5,11 +5,12 @@ import os
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import List, Dict
+from typing import List, Dict, Callable
 
 import pandas as pd
 import schwab
 import pytz
+import json
 
 from .base import DataGrabberBase
 
@@ -30,13 +31,13 @@ class SchwabGrabber(DataGrabberBase):
         self,
         api_key: str,
         api_secret: str,
-        tickers: List[str],
+        tickers: str | List[str],
         interval: str,
         period: str = "max",
         name: str = "",
-        token_path: str = "token1.json",
+        token_path: str = "credentials/schwab/token.json",
         data_dir: str = "./data",
-        callback_url: str = "https://127.0.0.1:8182/",
+        callback_url: str = "https://127.0.0.1:8182",
         account: str | None = None,
         client: schwab.client.Client | schwab.client.AsyncClient | None = None,
     ) -> None:
@@ -73,6 +74,12 @@ class SchwabGrabber(DataGrabberBase):
                 callback_url=callback_url,
                 token_path=token_path,
             )
+            # self.client = schwab.auth.client_from_manual_flow(
+            #     api_key=api_key,
+            #     app_secret=api_secret,
+            #     callback_url=callback_url,
+            #     token_path=token_path,
+            # )
         else:
             self.client = client
 
@@ -86,14 +93,9 @@ class SchwabGrabber(DataGrabberBase):
             account = list(account_hash_map.keys())[0]
         self.logger.info("Using account %s.", account)
         self.account_hash = account_hash_map[account]
-        self.stream_client = schwab.streaming.StreamClient(client, account_id=account)
-        self.locks = dict()
+        self.stream_client = schwab.streaming.StreamClient(self.client, account_id=account)
+        self.locks: Dict[str, asyncio.Lock] = dict()
         self.data_dir = data_dir
-
-    def convert_timestamp(self, ts: int, tz: str = "America/New_York") -> datetime:
-        if ts > 1e12:
-            ts /= 1000
-        return datetime.fromtimestamp(ts, tz=pytz.timezone(tz)).replace(tzinfo=None)
 
     def getHistoricalData(
         self,
@@ -282,10 +284,13 @@ class SchwabGrabber(DataGrabberBase):
         if isinstance(ts, str):
             ts = int(ts)
         if ts > 1e12:
-            ts /= 1000
+            ts = int(ts / 1000)
         return datetime.fromtimestamp(ts, tz=pytz.timezone(tz)).replace(tzinfo=None)
 
-    async def async_append_to_csv(self, df: pd.DataFrame, filename: str, lock: asyncio.Lock):
+    async def async_append_to_csv(self, df: pd.DataFrame, filename: str):
+        if filename not in self.locks:
+            self.locks[filename] = asyncio.Lock()
+        lock = self.locks[filename]
         async with self.acquire_lock(lock):
             file_exists = os.path.exists(filename)
             async with aiofiles.open(filename, mode='a') as f:
@@ -293,7 +298,9 @@ class SchwabGrabber(DataGrabberBase):
                 csv_buffer = df.to_csv(index=False, header=not file_exists, mode='a')
                 await f.write(csv_buffer)
 
-    async def sub_l2_book_eq(self, tickers: List[str], handle_func: function):
+    async def sub_l2_book_eq(self, handle_func: Callable, tickers: str | List[str] = []):
+        if len(tickers) == 0:
+            tickers = self.tickers
         await self.stream_client.login()
         # Always add handlers before subscribing because many streams start sending
         # data immediately after success, and messages with no handlers are dropped.
@@ -306,12 +313,37 @@ class SchwabGrabber(DataGrabberBase):
         while True:
             await self.stream_client.handle_message()
 
-    async def sub_l1_eq(self, tickers: List[str], handle_func: function):
+    async def sub_l1_eq(self, handle_func: Callable, tickers: str | List[str]= []):
+        if len(tickers) == 0:
+            tickers = self.tickers
         await self.stream_client.login()
         # Always add handlers before subscribing because many streams start sending
         # data immediately after success, and messages with no handlers are dropped.
         self.stream_client.add_level_one_equity_handler(handle_func)
         await self.stream_client.level_one_equity_subs(tickers)
+        while True:
+            await self.stream_client.handle_message()
+
+    async def sub_both_books_eq(
+        self,
+        handle_func_l1: Callable,
+        handle_func_l2: Callable,
+        tickers: str | List[str] = [],
+    ):
+        if len(tickers) == 0:
+            tickers = self.tickers
+        await self.stream_client.login()
+        # Always add handlers before subscribing because many streams start sending
+        # data immediately after success, and messages with no handlers are dropped.
+        self.stream_client.add_nasdaq_book_handler(handle_func_l2)
+        await self.stream_client.nasdaq_book_subs(tickers)
+
+        self.stream_client.add_nyse_book_handler(handle_func_l2)
+        await self.stream_client.nyse_book_subs(tickers)
+
+        self.stream_client.add_level_one_equity_handler(handle_func_l1)
+        await self.stream_client.level_one_equity_subs(tickers)
+
         while True:
             await self.stream_client.handle_message()
 
@@ -333,14 +365,10 @@ class SchwabGrabber(DataGrabberBase):
             df_book = df_book.drop(["SEQUENCE"], axis=1)
             # df_book["TIMESTAMP"] = content["BOOK_TIME"]
 
-            if ticker not in self.locks:
-                self.locks[ticker] = asyncio.Lock()
-            lock = self.locks[ticker]
-
-            save_dir = os.path.join(self.data_dir, str(dt.year), str(dt.month), str(dt.day))
+            save_dir = os.path.join(self.data_dir, "l2_book", str(dt.year), str(dt.month), str(dt.day))
             os.makedirs(save_dir, exist_ok=True)
             opt_file = os.path.join(save_dir, f"l2_book_{ticker}_{dt.strftime('%Y%m%d')}.csv")
-            await self.async_append_to_csv(df_book, opt_file, lock)
+            await self.async_append_to_csv(df_book, opt_file)
 
             if ticker == "VOO" and message["service"] == "NYSE_BOOK":
                 os.system('cls')
@@ -360,6 +388,41 @@ class SchwabGrabber(DataGrabberBase):
                     .to_string(index=False, header=False, col_space=7)
                 )
                 print("\n")
+
+    async def parse_l1_book_message(self, message: Dict):
+        for content in message["content"]:
+            row = pd.Series(content)
+            if len(row) == 0:
+                continue
+            ticker = content["key"]
+            row = pd.Series({
+                "DATETIME": self.convert_timestamp(content["QUOTE_TIME_MILLIS"]),
+                "BID_PRICE": content["BID_PRICE"],
+                "ASK_PRICE": content["ASK_PRICE"],
+                "LAST_PRICE": content["LAST_PRICE"],
+                "HIGH_PRICE": content["HIGH_PRICE"],
+                "LOW_PRICE": content["LOW_PRICE"],
+                "OPEN_PRICE": content["OPEN_PRICE"],
+                "CLOSE_PRICE": content["CLOSE_PRICE"],
+                "BID_VOLUME": content["BID_SIZE"],
+                "ASK_VOLUME": content["ASK_SIZE"],
+                "LAST_SIZE": content["LAST_SIZE"],
+                "TOTAL_VOLUME": content["TOTAL_VOLUME"],
+            })
+            # row.rename({"QUOTE_TIME_MILLIS": "DATETIME"}, inplace=True)
+            # row.index = [x.replace("_SIZE", "_VOLUME") for x in row.index]
+            # row["DATETIME"] = self.convert_timestamp(row["DATETIME"])
+            # row.drop(
+            #     ["key", "delayed", "assetMainType", "assetSubType", "cusip"],
+            #     axis=0,
+            #     inplace=True,
+            #     errors="ignore",
+            # )
+            dt = row["DATETIME"]
+            save_dir = os.path.join(self.data_dir, "l1_book", str(dt.year), str(dt.month), str(dt.day))
+            os.makedirs(save_dir, exist_ok=True)
+            opt_file = os.path.join(save_dir, f"l1_book_{ticker}_{dt.strftime('%Y%m%d')}.csv")
+            # await self.async_append_to_csv(pd.DataFrame([row]), opt_file)
 
     @asynccontextmanager
     async def acquire_lock(self, lock: asyncio.Lock):
