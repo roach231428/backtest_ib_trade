@@ -370,24 +370,8 @@ class SchwabGrabber(DataGrabberBase):
             opt_file = os.path.join(save_dir, f"l2_book_{ticker}_{dt.strftime('%Y%m%d')}.csv")
             await self.async_append_to_csv(df_book, opt_file)
 
-            if ticker == "VOO" and message["service"] == "NYSE_BOOK":
-                os.system('cls')
-                print(ticker, "\t", dt)
-                print("  PRICE ", "NUM_TRADES", " EXCHANGE", "VOLUME")
-                print(
-                    df_book
-                    .query("BID_ASK == 'A'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
-                    .sort_values("PRICE", ascending=False)
-                    .to_string(index=False, header=False, col_space=7)
-                )
-                print("-------------------------------------")
-                print(
-                    df_book
-                    .query("BID_ASK == 'B'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
-                    .sort_values("PRICE", ascending=False)
-                    .to_string(index=False, header=False, col_space=7)
-                )
-                print("\n")
+            if ticker == "QQQ" and message["service"] == "NYSE_BOOK":
+                self.print_orderbook(ticker, dt, df_book)
 
     async def parse_l1_book_message(self, message: Dict):
         for content in message["content"]:
@@ -434,6 +418,25 @@ class SchwabGrabber(DataGrabberBase):
 
     def print_message(self, message):
         print(json.dumps(message, indent=4))
+
+    def print_orderbook(ticker: str, dt: datetime, df_book: pd.DataFrame):
+        os.system('cls')
+        print(ticker, "\t", dt)
+        print("  PRICE ", "NUM_TRADES", " EXCHANGE", "VOLUME")
+        print(
+            df_book
+            .query("BID_ASK == 'A'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
+            .sort_values("PRICE", ascending=False)
+            .to_string(index=False, header=False, col_space=7)
+        )
+        print("-------------------------------------")
+        print(
+            df_book
+            .query("BID_ASK == 'B'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
+            .sort_values("PRICE", ascending=False)
+            .to_string(index=False, header=False, col_space=7)
+        )
+        print("")
 
 
 if __name__ == "__main__":
