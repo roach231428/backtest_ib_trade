@@ -1,16 +1,16 @@
-import aiofiles
 import asyncio
+import json
 import logging
 import os
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import List, Dict, Callable
+from typing import Callable, Dict, List
 
+import aiofiles
 import pandas as pd
-import schwab
 import pytz
-import json
+import schwab
 
 from .base import DataGrabberBase
 
@@ -87,13 +87,15 @@ class SchwabGrabber(DataGrabberBase):
         account_hash_map = {x["accountNumber"]: x["hashValue"] for x in acc_res}
         if account is not None:
             if account not in account_hash_map.keys():
-                self.account_hash = account_hash_map[account]
                 self.logger.error("Account %s not found.", account)
+                account = list(account_hash_map.keys())[0]
         else:
             account = list(account_hash_map.keys())[0]
         self.logger.info("Using account %s.", account)
         self.account_hash = account_hash_map[account]
-        self.stream_client = schwab.streaming.StreamClient(self.client, account_id=account)
+        self.stream_client = schwab.streaming.StreamClient(
+            self.client, account_id=account
+        )
         self.locks: Dict[str, asyncio.Lock] = dict()
         self.data_dir = data_dir
 
@@ -280,7 +282,9 @@ class SchwabGrabber(DataGrabberBase):
                 res_df = res_df.sort_index(axis=1).merge(candle_df, on="Datetime")
         return res_df.set_index("Datetime")
 
-    def convert_timestamp(self, ts: int | str, tz: str = "America/New_York") -> datetime:
+    def convert_timestamp(
+        self, ts: int | str, tz: str = "America/New_York"
+    ) -> datetime:
         if isinstance(ts, str):
             ts = int(ts)
         if ts > 1e12:
@@ -293,12 +297,14 @@ class SchwabGrabber(DataGrabberBase):
         lock = self.locks[filename]
         async with self.acquire_lock(lock):
             file_exists = os.path.exists(filename)
-            async with aiofiles.open(filename, mode='a') as f:
+            async with aiofiles.open(filename, mode="a") as f:
                 # Convert DataFrame to CSV string
-                csv_buffer = df.to_csv(index=False, header=not file_exists, mode='a')
+                csv_buffer = df.to_csv(index=False, header=not file_exists, mode="a")
                 await f.write(csv_buffer)
 
-    async def sub_l2_book_eq(self, handle_func: Callable, tickers: str | List[str] = []):
+    async def sub_l2_book_eq(
+        self, handle_func: Callable, tickers: str | List[str] = []
+    ):
         if len(tickers) == 0:
             tickers = self.tickers
         await self.stream_client.login()
@@ -313,7 +319,7 @@ class SchwabGrabber(DataGrabberBase):
         while True:
             await self.stream_client.handle_message()
 
-    async def sub_l1_eq(self, handle_func: Callable, tickers: str | List[str]= []):
+    async def sub_l1_eq(self, handle_func: Callable, tickers: str | List[str] = []):
         if len(tickers) == 0:
             tickers = self.tickers
         await self.stream_client.login()
@@ -352,11 +358,29 @@ class SchwabGrabber(DataGrabberBase):
             ticker = content["key"]
             dt = self.convert_timestamp(content["BOOK_TIME"])
 
-            df_bids = pd.json_normalize(content["BIDS"], 'BIDS', ['BID_PRICE', 'TOTAL_VOLUME', 'NUM_BIDS'])
-            df_bids = df_bids.rename({"BID_PRICE": "PRICE", "BID_VOLUME": "VOLUME", "NUM_BIDS": "NUM_TRADES"}, axis=1)
+            df_bids = pd.json_normalize(
+                content["BIDS"], "BIDS", ["BID_PRICE", "TOTAL_VOLUME", "NUM_BIDS"]
+            )
+            df_bids = df_bids.rename(
+                {
+                    "BID_PRICE": "PRICE",
+                    "BID_VOLUME": "VOLUME",
+                    "NUM_BIDS": "NUM_TRADES",
+                },
+                axis=1,
+            )
             df_bids["BID_ASK"] = "B"
-            df_asks = pd.json_normalize(content["ASKS"], 'ASKS', ['ASK_PRICE', 'TOTAL_VOLUME', 'NUM_ASKS'])
-            df_asks = df_asks.rename({"ASK_PRICE": "PRICE", "ASK_VOLUME": "VOLUME", "NUM_ASKS": "NUM_TRADES"}, axis=1)
+            df_asks = pd.json_normalize(
+                content["ASKS"], "ASKS", ["ASK_PRICE", "TOTAL_VOLUME", "NUM_ASKS"]
+            )
+            df_asks = df_asks.rename(
+                {
+                    "ASK_PRICE": "PRICE",
+                    "ASK_VOLUME": "VOLUME",
+                    "NUM_ASKS": "NUM_TRADES",
+                },
+                axis=1,
+            )
             df_asks["BID_ASK"] = "A"
             df_book = pd.concat([df_bids, df_asks])
             if df_book.empty:
@@ -365,9 +389,13 @@ class SchwabGrabber(DataGrabberBase):
             df_book = df_book.drop(["SEQUENCE"], axis=1)
             # df_book["TIMESTAMP"] = content["BOOK_TIME"]
 
-            save_dir = os.path.join(self.data_dir, "l2_book", str(dt.year), str(dt.month), str(dt.day))
+            save_dir = os.path.join(
+                self.data_dir, "l2_book", str(dt.year), str(dt.month), str(dt.day)
+            )
             os.makedirs(save_dir, exist_ok=True)
-            opt_file = os.path.join(save_dir, f"l2_book_{ticker}_{dt.strftime('%Y%m%d')}.csv")
+            opt_file = os.path.join(
+                save_dir, f"l2_book_{ticker}_{dt.strftime('%Y%m%d')}.csv"
+            )
             await self.async_append_to_csv(df_book, opt_file)
 
             if ticker == "QQQ" and message["service"] == "NASDAQ_BOOK":
@@ -379,20 +407,22 @@ class SchwabGrabber(DataGrabberBase):
             if len(row) == 0:
                 continue
             ticker = content["key"]
-            row = pd.Series({
-                "DATETIME": self.convert_timestamp(content["QUOTE_TIME_MILLIS"]),
-                "BID_PRICE": content["BID_PRICE"],
-                "ASK_PRICE": content["ASK_PRICE"],
-                "LAST_PRICE": content["LAST_PRICE"],
-                "HIGH_PRICE": content["HIGH_PRICE"],
-                "LOW_PRICE": content["LOW_PRICE"],
-                "OPEN_PRICE": content["OPEN_PRICE"],
-                "CLOSE_PRICE": content["CLOSE_PRICE"],
-                "BID_VOLUME": content["BID_SIZE"],
-                "ASK_VOLUME": content["ASK_SIZE"],
-                "LAST_SIZE": content["LAST_SIZE"],
-                "TOTAL_VOLUME": content["TOTAL_VOLUME"],
-            })
+            row = pd.Series(
+                {
+                    "DATETIME": self.convert_timestamp(content["QUOTE_TIME_MILLIS"]),
+                    "BID_PRICE": content["BID_PRICE"],
+                    "ASK_PRICE": content["ASK_PRICE"],
+                    "LAST_PRICE": content["LAST_PRICE"],
+                    "HIGH_PRICE": content["HIGH_PRICE"],
+                    "LOW_PRICE": content["LOW_PRICE"],
+                    "OPEN_PRICE": content["OPEN_PRICE"],
+                    "CLOSE_PRICE": content["CLOSE_PRICE"],
+                    "BID_VOLUME": content["BID_SIZE"],
+                    "ASK_VOLUME": content["ASK_SIZE"],
+                    "LAST_SIZE": content["LAST_SIZE"],
+                    "TOTAL_VOLUME": content["TOTAL_VOLUME"],
+                }
+            )
             # row.rename({"QUOTE_TIME_MILLIS": "DATETIME"}, inplace=True)
             # row.index = [x.replace("_SIZE", "_VOLUME") for x in row.index]
             # row["DATETIME"] = self.convert_timestamp(row["DATETIME"])
@@ -403,9 +433,13 @@ class SchwabGrabber(DataGrabberBase):
             #     errors="ignore",
             # )
             dt = row["DATETIME"]
-            save_dir = os.path.join(self.data_dir, "l1_book", str(dt.year), str(dt.month), str(dt.day))
+            save_dir = os.path.join(
+                self.data_dir, "l1_book", str(dt.year), str(dt.month), str(dt.day)
+            )
             os.makedirs(save_dir, exist_ok=True)
-            opt_file = os.path.join(save_dir, f"l1_book_{ticker}_{dt.strftime('%Y%m%d')}.csv")
+            opt_file = os.path.join(
+                save_dir, f"l1_book_{ticker}_{dt.strftime('%Y%m%d')}.csv"
+            )
             # await self.async_append_to_csv(pd.DataFrame([row]), opt_file)
 
     @asynccontextmanager
@@ -420,19 +454,21 @@ class SchwabGrabber(DataGrabberBase):
         print(json.dumps(message, indent=4))
 
     def print_orderbook(self, ticker: str, dt: datetime, df_book: pd.DataFrame):
-        os.system('cls')
+        os.system("cls")
         print(ticker, "\t", dt)
         print("  PRICE ", "NUM_TRADES", " EXCHANGE", "VOLUME")
         print(
-            df_book
-            .query("BID_ASK == 'A'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
+            df_book.query("BID_ASK == 'A'")[
+                ["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]
+            ]
             .sort_values("PRICE", ascending=False)
             .to_string(index=False, header=False, col_space=7)
         )
         print("-------------------------------------")
         print(
-            df_book
-            .query("BID_ASK == 'B'")[["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]]
+            df_book.query("BID_ASK == 'B'")[
+                ["PRICE", "NUM_TRADES", "EXCHANGE", "VOLUME"]
+            ]
             .sort_values("PRICE", ascending=False)
             .to_string(index=False, header=False, col_space=7)
         )
