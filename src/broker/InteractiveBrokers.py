@@ -7,8 +7,8 @@ import pandas as pd
 from backtrader import CommInfoBase
 from ib_insync.order import UNSET_DOUBLE
 
-from ..model.models import Position
 from .base import BrokerBase
+from .types import OrderType, TimeInForce
 
 
 class CommissionSchemeFixed(CommInfoBase):
@@ -169,7 +169,8 @@ class InteractiveBrokers(BrokerBase):
         self,
         instrument: str,
         qty: float,
-        orderType: str = "MKT",
+        order_type: OrderType = OrderType.MARKET,
+        tif: TimeInForce = TimeInForce.DAY,
         exchange: str = "SMART",
         price: float = UNSET_DOUBLE,
         stop_price: float = UNSET_DOUBLE,
@@ -197,7 +198,7 @@ class InteractiveBrokers(BrokerBase):
         order = self.makeOrder(
             action=action,
             qty=qty,
-            orderType=orderType,
+            orderType=order_type.value,
             price=price,
             stop_price=stop_price,
             **kwargs,
@@ -216,21 +217,6 @@ class InteractiveBrokers(BrokerBase):
         if log.errorCode != 0:
             self.logger.error(log.message)
         return order_id
-
-    def closePosition(self, tickers: str | List[str] = []) -> None:
-        if isinstance(tickers, str):
-            tickers = [tickers]
-        positions = self.getHoldings(tickers)
-        if len(tickers) == 0:
-            tickers = list(positions.keys())
-        for ticker in tickers:
-            if ticker not in positions:
-                continue
-            self.placeStockOrder(
-                instrument=f"{ticker}-USD-SPOT",
-                qty=-positions[ticker],
-                orderType="MKT",
-            )
 
     def getTradesById(self, order_ids: List[str] = []) -> Dict[str, ib.Trade | None]:
         all_trades = self._ib.trades()
@@ -258,12 +244,15 @@ class InteractiveBrokers(BrokerBase):
                 self.logger.warning(f"Order {order.orderId} has been canceled.")
                 self.sleep(0.001)
 
-    def isPending(self, order_id: str) -> bool:
+    def getOrderStatus(self, order_id: str) -> str:
         trade = self.getTradesById([order_id])[order_id]
         if trade is None:
             self.logger.error(f"Order {order_id} not found.")
-            return False
-        res = trade.orderStatus.status in {
+            return ""
+        return trade.orderStatus.status
+
+    def isPending(self, order_id: str) -> bool:
+        res = self.getOrderStatus(order_id) in {
             ib.OrderStatus.ApiPending,
             ib.OrderStatus.PendingSubmit,
             ib.OrderStatus.Inactive,
@@ -271,28 +260,16 @@ class InteractiveBrokers(BrokerBase):
         return res
 
     def isSumbitted(self, order_id: str) -> bool:
-        trade = self.getTradesById([order_id])[order_id]
-        if trade is None:
-            self.logger.error(f"Order {order_id} not found.")
-            return False
-        return trade.orderStatus.status in {
+        return self.getOrderStatus(order_id) in {
             ib.OrderStatus.Submitted,
             ib.OrderStatus.PreSubmitted,
         }
 
     def isFilled(self, order_id: str) -> bool:
-        trade = self.getTradesById([order_id])[order_id]
-        if trade is None:
-            self.logger.error(f"Order {order_id} not found.")
-            return False
-        return trade.orderStatus.status == ib.OrderStatus.Filled
+        return self.getOrderStatus(order_id) == ib.OrderStatus.Filled
 
     def isCancelled(self, order_id: str) -> bool:
-        trade = self.getTradesById([order_id])[order_id]
-        if trade is None:
-            self.logger.error(f"Order {order_id} not found.")
-            return False
-        res = trade.orderStatus.status in {
+        res = self.getOrderStatus(order_id) in {
             ib.OrderStatus.PendingCancel,
             ib.OrderStatus.Cancelled,
             ib.OrderStatus.ApiCancelled,
@@ -305,28 +282,6 @@ class InteractiveBrokers(BrokerBase):
             self.logger.error(f"Order {order_id} not found.")
             return 0.0
         return trade.orderStatus.avgFillPrice
-
-    def getPositions(self, tickers: List[str] = []) -> Dict[str, Position]:
-        all_positions = self.getPositionsDF()
-        if all_positions.empty:
-            return {t: Position(t) for t in tickers}
-        else:
-            all_positions.set_index("symbol", inplace=True)
-            if tickers == []:
-                tickers = all_positions.index
-            res = {
-                t: Position(
-                    symbol=t,
-                    currency=all_positions.loc[t, "currency"],
-                    position=all_positions.loc[t, "position"],
-                    avg_cost=all_positions.loc[t, "avg_cost"],
-                    unrealized_pnl=all_positions.loc[t, "unrealized_pnl"],
-                )
-                if t in all_positions.index
-                else Position(t)
-                for t in tickers
-            }
-            return res
 
     def getExecuteOrdersDF(self) -> pd.DataFrame:
         executed = self._ib.executions()
