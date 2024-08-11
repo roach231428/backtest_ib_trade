@@ -65,7 +65,7 @@ class SchwabGrabber(DataGrabberBase):
         """
 
         super().__init__(tickers, interval=interval, period=period, name=name)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         if client is None:
             self.client = schwab.auth.easy_client(

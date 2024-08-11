@@ -42,7 +42,7 @@ class TraderBase(abc.ABC):
         self.grabbers: Dict[str, DataGrabberBase] = dict()
         self.break_flag: bool = False
         self.buffer_time = buffer_time
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
     def setStrategy(self, strategy: StrategyBase) -> None:
         self.strategy = strategy
@@ -68,20 +68,20 @@ class TraderBase(abc.ABC):
 
         if self.broker is None:
             raise Exception("Broker is not set yet. Please set with setBroker().")
-        logging.info("Initializing broker...")
+        self.logger.info("Initializing broker...")
         self.broker.start()
 
         if self.strategy is None:
             raise Exception("Strategy is not set yet. Please set with setStrategy().")
         self.strategy.setBroker(self.broker)
-        logging.info("Broker added to strategy.")
+        self.logger.info("Broker added to strategy.")
 
         if len(self.grabbers) == 0:
             raise Exception("No data grabber. Please add using addGrabber().")
         for grabber in self.grabbers.values():
             self.strategy.addGrabber(grabber)
-        logging.info("Data grabber added to strategy.")
-        logging.info("Initializing strategy...")
+        self.logger.info("Data grabber added to strategy.")
+        self.logger.info("Initializing strategy...")
         self.updateData()
         self.strategy.init()
         self.run()
@@ -104,7 +104,7 @@ class TraderBase(abc.ABC):
         raise NotImplementedError
 
     def stop(self) -> None:
-        logging.info("Stopping trade...")
+        self.logger.info("Stopping trade...")
         self.broker.stop()
 
     def updateData(

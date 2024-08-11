@@ -13,7 +13,7 @@ from .types import OrderType, TimeInForce
 
 class BrokerBase(abc.ABC):
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
     @abc.abstractmethod
     def start(self, **kwargs) -> None:
