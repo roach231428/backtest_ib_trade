@@ -12,6 +12,7 @@ import pandas as pd
 import pytz
 import schwab
 
+import sys
 from .base import DataGrabberBase
 
 
@@ -400,6 +401,8 @@ class SchwabGrabber(DataGrabberBase):
 
             if ticker == "QQQ" and message["service"] == "NASDAQ_BOOK":
                 self.print_orderbook(ticker, dt, df_book)
+        if dt.hour == 8 and dt.minute == 0 and dt.second >= 0:
+            sys.exit(0)
 
     async def parse_l1_book_message(self, message: Dict):
         for content in message["content"]:
