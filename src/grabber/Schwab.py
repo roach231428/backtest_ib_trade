@@ -401,8 +401,8 @@ class SchwabGrabber(DataGrabberBase):
 
             if ticker == "QQQ" and message["service"] == "NASDAQ_BOOK":
                 self.print_orderbook(ticker, dt, df_book)
-        if dt.hour == 20 and dt.minute == 0 and dt.second >= 0:
-            sys.exit(0)
+                if dt.hour == 20 and dt.minute == 0 and dt.second >= 0:
+                    sys.exit(0)
 
     async def parse_l1_book_message(self, message: Dict):
         for content in message["content"]:
