@@ -1,0 +1,4 @@
+pre_commit==3.5.0
+schwab-py==1.3.0
+aiofiles==24.1.0
+types-pytz
