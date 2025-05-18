@@ -9,9 +9,10 @@ This project is designed to facilitate trading and backtesting using Backtrader 
 ## Prerequisites
 
 Before you begin, ensure you have met the following requirements:
-* You have installed Python 3.11.
+* You have installed **Python 3.11**.
 * You have a basic understanding of financial markets and trading.
-* You have set up an Interactive Brokers account and have TWS installed.
+* You have set up an **Interactive Brokers** account and have **TWS** installed.
+* You need to have the **TA-Lib** already installed. Please refers to [here](https://github.com/ta-lib/ta-lib-python?tab=readme-ov-file#dependencies) for detailed instructions.
 
 ## Installation
 
@@ -24,16 +25,16 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-The example files are in `src/` folder.
+The example files are in `src/example` folder.
 
 ## Contributing to Backtest IB Trade
 
 To contribute to Backtest IB Trade, follow these steps:
 
 1. Fork this repository.
-2. Create a branch: `git checkout -b <branch_name>``.
-3. Make your changes and commit them: `git commit -m '<commit_message>'``
-4. Push to the original branch: `git push origin <project_name>/<location>``
+2. Create a branch: `git checkout -b <branch_name>`.
+3. Make your changes and commit them: `git commit -m '<commit_message>'`
+4. Push to the original branch: `git push origin <project_name>/<location>`
 5. Create the pull request.
 
 Alternatively, see the GitHub documentation on creating a pull request.
